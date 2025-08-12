@@ -42,7 +42,7 @@ jobs:
           port: ${{ secrets.BACKEND_SSH_PORT }}
           script: |
             echo "🔐 Backing up .env (if exists)"
-            cd /home/devbacke/public_html/DigihubTech_Backend
+            cd /home/devbacke/public_html/Dev_DigihubTech_Backend
             if [ -f .env ]; then
               cp .env /home/devbacke/.env_backup
             fi
