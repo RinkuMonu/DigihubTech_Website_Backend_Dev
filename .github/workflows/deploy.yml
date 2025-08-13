@@ -16,12 +16,10 @@ jobs:
       - name: 🛠️ Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: 📦 Compress Backend Code (exclude storage, node_modules)
         run: tar --exclude='./storage' --exclude='./node_modules' --exclude='.DS_Store' --exclude='./.git' -czvf backend.tar.gz . || true
-
-
 
       - name: 🚀 Upload to Server via SCP
         uses: appleboy/scp-action@master
@@ -66,6 +64,7 @@ jobs:
             npm install --legacy-peer-deps
 
             echo "🚀 Restarting Node app using PM2"
-         
+            pm2 restart Dev_DigihubTech_Backend || pm2 start index.js --name Dev_DigihubTech_Backend
+
 
             echo "✅ Deployment finished!"
