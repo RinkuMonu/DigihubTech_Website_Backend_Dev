@@ -38,7 +38,6 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // app.use(cors({ origin: '*' }));
 
-
 app.use(
   cors({
     origin: [
@@ -46,17 +45,18 @@ app.use(
       "http://localhost:5008",
       "http://localhost:4002",
       "http://localhost:4003",
+      "http://localhost:4005",
+      "http://localhost:4004",
       "https://yourfrontenddomain.com",
       "https://jajamblockprints.com",
       "https://admin.jajamblockprints.com",
       "https://slsxt366-4002.inc1.devtunnels.ms/",
       "https://admin.digihubtech.in",
-      "https://website.digihubtech.in"
+      "https://website.digihubtech.in",
     ], // allow specific frontend domains
     credentials: true, // allow cookies and headers like Authorization
   })
 );
-
 
 app.use("/uploads", express.static(path.join(__dirname, "./src/uploads")));
 
@@ -70,7 +70,7 @@ app.use("/api/order", orderRoutes);
 app.use("/api/policy", policyRoutes);
 app.use("/api/banners", bannerRoutes);
 app.use("/api/sendreview", review);
-app.use("/api/brand", brandRoutes)
+app.use("/api/brand", brandRoutes);
 
 app.post("/api/phonepe-payment", phonePeController);
 app.get("/api/dashboard", isAdmin, getDashboardData);

@@ -112,10 +112,14 @@ const VariantSchema = new mongoose.Schema(
   {
     sku: { type: String, required: true, trim: true },
     options: {
-      type: Map,
-      of: String,
-      default: undefined,
+      type: Object,
+      default: {},
     },
+    // options: {
+    //   type: Map,
+    //   of: String,
+    //   default: undefined,
+    // },
     images: { type: [String], default: [] },
     pricing: Money,
     stock: { type: Number, default: 0, min: 0 },

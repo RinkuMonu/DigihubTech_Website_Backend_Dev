@@ -16,7 +16,7 @@ brandRoutes.post(
   "/createBrand",
   verifyToken,
   isAdmin,
-  upload.array("logo", 5),
+  upload.single("logo"),
   createBrand
 );
 

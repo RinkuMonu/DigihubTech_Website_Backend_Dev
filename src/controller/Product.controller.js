@@ -134,6 +134,19 @@ export const createProduct = async (req, res) => {
         attributesFlat = { ...defaultVariant.options };
       }
     }
+    if (req.body.returnPolicy && typeof req.body.returnPolicy === "string") {
+      req.body.returnPolicy = JSON.parse(req.body.returnPolicy);
+    }
+    if (req.body.warranty && typeof req.body.warranty === "string") {
+      req.body.warranty = JSON.parse(req.body.warranty);
+    }
+    if (req.body.tax && typeof req.body.tax === "string") {
+      req.body.tax = JSON.parse(req.body.tax);
+    }
+    if (req.body.dealOfTheDay && typeof req.body.dealOfTheDay === "string") {
+      req.body.dealOfTheDay = JSON.parse(req.body.dealOfTheDay);
+    }
+    console.log(req.body);
 
     // Build product data
     const productData = {
@@ -562,6 +575,7 @@ export const updateProduct = async (req, res) => {
     }
 
     const updateData = { ...req.body };
+    console.log("jhgfdsfghjkgfdsghj", updateData);
 
     // Parse specs if it's a JSON string
     if (updateData.specs && typeof updateData.specs === "string") {
@@ -569,6 +583,43 @@ export const updateProduct = async (req, res) => {
         updateData.specs = JSON.parse(updateData.specs);
       } catch (err) {
         return res.status(400).json({ message: "Invalid specs JSON format" });
+      }
+    }
+    if (
+      updateData.returnPolicy &&
+      typeof updateData.returnPolicy === "string"
+    ) {
+      updateData.returnPolicy = JSON.parse(updateData.returnPolicy);
+    }
+    if (updateData.warranty && typeof updateData.warranty === "string") {
+      updateData.warranty = JSON.parse(updateData.warranty);
+    }
+    if (updateData.tax && typeof updateData.tax === "string") {
+      updateData.tax = JSON.parse(updateData.tax);
+    }
+    if (
+      updateData.dealOfTheDay &&
+      typeof updateData.dealOfTheDay === "string"
+    ) {
+      updateData.dealOfTheDay = JSON.parse(updateData.dealOfTheDay);
+    }
+    if (req.body.seo && typeof req.body.seo === "string") {
+      try {
+        req.body.seo = JSON.parse(req.body.seo);
+      } catch (err) {
+        console.error("Invalid SEO JSON");
+      }
+    }
+    if (
+      updateData.attributesFlat &&
+      typeof updateData.attributesFlat === "string"
+    ) {
+      try {
+        updateData.attributesFlat = JSON.parse(updateData.attributesFlat);
+      } catch (err) {
+        return res
+          .status(400)
+          .json({ message: "Invalid attributesFlat JSON format" });
       }
     }
 
