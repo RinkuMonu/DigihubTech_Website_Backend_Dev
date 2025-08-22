@@ -1,78 +1,9 @@
-// import mongoose from "mongoose";
-
-// const productSchema = new mongoose.Schema(
-//   {
-//     referenceWebsite: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: "Websitelist",
-//       // required: true,
-//     },
-//     productName: {
-//       type: String,
-//       required: true,
-//       trim: true,
-//     },
-//     description: {
-//       type: String,
-//       required: true,
-//       trim: true,
-//     },
-//     images: {
-//       type: [String],
-//       required: true,
-//     },
-//     price: {
-//       type: Number,
-//       required: true,
-//       min: [0, "Price must be a positive value"],
-//     },
-//     dealOfTheDay: {
-//       status: { type: Boolean, default: false },
-//       startTime: { type: Date },         // When the deal starts
-//       endTime: { type: Date },           // When the deal ends
-//     },
-//     actualPrice: {
-//       type: Number,
-//       min: [0, "Price must be a positive value"],
-//       default: 0,
-//     },
-//     size: {
-//       type: String, // Single size, not an array
-//       //  enum: ["S", "M", "L", "XL", "XXL", "Free", "Custom", "OneSize"],
-//       default: "Free", // Default size
-//       required: true,
-//     },
-//     discount: {
-//       type: Number,
-//       default: 0
-//     },
-//     category: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: "ProductCategory"
-//     },
-
-//     addedBy: {
-//       type: mongoose.Schema.Types.ObjectId,
-//       ref: "User",
-//       required: true,
-//     }
-//   },
-//   {
-//     timestamps: true, // Adds createdAt and updatedAt timestamps
-//   }
-// );
-
-// const Product = mongoose.model("Product", productSchema);
-
-// export default Product;
 
 import mongoose from "mongoose";
 
-/** ---------- Small helper sub-schemas ---------- **/
-
 const Money = {
-  mrp: { type: Number, required: true, min: 0 }, // MRP / list price
-  price: { type: Number, required: true, min: 0 }, // Selling price
+  mrp: { type: Number, required: true, min: 0 },
+  price: { type: Number, required: true, min: 0 },
   currency: { type: String, default: "INR" },
 };
 
@@ -107,6 +38,15 @@ const Tax = {
   gstRate: { type: Number, min: 0, max: 28 }, // %
 };
 
+
+// const Discount = {
+//   discountType: { type: String, enum: ["PERCENT", "FLAT"], required: true },
+//   value: { type: Number, required: true, min: 0 },
+//   startTime: { type: Date, required: true },
+//   endTime: { type: Date, required: true },
+//   active: { type: Boolean, default: true },
+// };
+
 /** ---------- Variant (SKU) ---------- **/
 const VariantSchema = new mongoose.Schema(
   {
@@ -115,24 +55,25 @@ const VariantSchema = new mongoose.Schema(
       type: Object,
       default: {},
     },
-    // options: {
-    //   type: Map,
-    //   of: String,
-    //   default: undefined,
-    // },
+
     images: { type: [String], default: [] },
     pricing: Money,
-    stock: { type: Number, default: 0, min: 0 },
+    inventory: {
+      totalStock: { type: Number, default: 0, min: 0 },
+      // reservedStock: { type: Number, default: 0, min: 0 }, 
+      lowStockThreshold: { type: Number, default: 5 },
+    },
+    // stock: { type: Number, default: 0, min: 0 },
     status: {
       type: String,
       enum: ["IN_STOCK", "OUT_OF_STOCK", "PREORDER", "DISCONTINUED"],
       default: "IN_STOCK",
     },
-    barcode: {
-      upc: { type: String, trim: true },
-      ean: { type: String, trim: true },
-      gtin: { type: String, trim: true },
-    },
+    // barcode: {
+    //   upc: { type: String, trim: true },
+    //   ean: { type: String, trim: true },
+    //   gtin: { type: String, trim: true },
+    // },
     weight: Weight,
     dimensions: Dimensions,
     isDefault: { type: Boolean, default: false },
@@ -226,6 +167,14 @@ const ProductSchema = new mongoose.Schema(
     returnPolicy: ReturnPolicy,
     warranty: Warranty,
     tax: Tax,
+    // discount: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: "Discount",
+    //   default: null
+    // },
+    discount: {
+      type: Number, default: 0
+    },
 
     // Search & merchandising
     tags: [{ type: String, trim: true, lowercase: true }],
@@ -302,6 +251,7 @@ ProductSchema.virtual("priceRange").get(function () {
   return { min: Math.min(...prices), max: Math.max(...prices) };
 });
 
+
 ProductSchema.methods.isDealLive = function () {
   const d = this.dealOfTheDay;
   if (!d?.status || !d.startTime || !d.endTime) return false;
@@ -309,53 +259,43 @@ ProductSchema.methods.isDealLive = function () {
   return now >= d.startTime && now <= d.endTime;
 };
 
+
+ProductSchema.virtual("effectivePrice").get(function () {
+  let basePrice = this.priceRange?.min || 0;
+
+  // Deal of the Day
+  if (this.isDealLive() && this.dealOfTheDay?.discountPercent) {
+    basePrice = basePrice * (1 - this.dealOfTheDay.discountPercent / 100);
+  }
+
+  // First active discount
+  const activeDiscount = this.discounts?.find(
+    d => d.active && new Date() >= d.startTime && new Date() <= d.endTime
+  );
+  if (activeDiscount) {
+    if (activeDiscount.discountType === "PERCENT") {
+      basePrice = basePrice * (1 - activeDiscount.value / 100);
+    } else {
+      basePrice = basePrice - activeDiscount.value;
+    }
+  }
+
+  return Math.max(basePrice, 0);
+});
+
+// Stock status (aggregated from variants)
+ProductSchema.virtual("stockStatus").get(function () {
+  if (!this.variants?.length) return "OUT_OF_STOCK";
+
+  const totalStock = this.variants.reduce((sum, v) => sum + (v.inventory?.totalStock || 0), 0);
+  const lowStockThreshold = Math.min(...this.variants.map(v => v.inventory?.lowStockThreshold ?? 5));
+
+  if (totalStock <= 0) return "OUT_OF_STOCK";
+  if (totalStock <= lowStockThreshold) return "LOW_STOCK";
+  return "IN_STOCK";
+});
+
+
 const Product = mongoose.model("Product", ProductSchema);
 export default Product;
 
-// {
-//   "productName": "Premium Cotton T-Shirt",
-//   "slug": "premium-cotton-tshirt",
-//   "category": "66bfa1e9d8...ab",
-//   "description": "100% cotton tee, breathable fabric.",
-//   "keyFeatures": ["100% Cotton", "Regular Fit", "Machine Wash"],
-//   "specs": [
-//     { "group": "General", "key": "Material", "value": "Cotton" },
-//     { "group": "General", "key": "Fit", "value": "Regular" }
-//   ],
-//   "images": ["https://cdn/tee/main1.jpg","https://cdn/tee/main2.jpg"],
-//   "variants": [
-//     {
-//       "sku": "TEE-RED-M",
-//       "options": { "color": "Red", "size": "M" },
-//       "images": ["https://cdn/tee/red1.jpg"],
-//       "pricing": { "mrp": 799, "price": 499, "currency": "INR" },
-//       "stock": 25,
-//       "isDefault": true
-//     },
-//     {
-//       "sku": "TEE-RED-L",
-//       "options": { "color": "Red", "size": "L" },
-//       "pricing": { "mrp": 799, "price": 499, "currency": "INR" },
-//       "stock": 10
-//     },
-//     {
-//       "sku": "TEE-BLK-M",
-//       "options": { "color": "Black", "size": "M" },
-//       "pricing": { "mrp": 799, "price": 549, "currency": "INR" },
-//       "stock": 0,
-//       "status": "OUT_OF_STOCK"
-//     }
-//   ],
-//   "dealOfTheDay": {
-//     "status": true,
-//     "startTime": "2025-08-12T03:30:00.000Z",
-//     "endTime": "2025-08-13T03:29:59.000Z",
-//     "discountPercent": 10,
-//     "variantIds": ["TEE-RED-M","TEE-RED-L"]
-//   },
-//   "tax": { "hsn": "6109", "gstRate": 5 },
-//   "returnPolicy": { "eligible": true, "days": 7 },
-//   "warranty": { "type": "Seller", "durationMonths": 0 },
-//   "tags": ["tshirt","cotton","mens"],
-//   "addedBy": "66bf...user"
-// }

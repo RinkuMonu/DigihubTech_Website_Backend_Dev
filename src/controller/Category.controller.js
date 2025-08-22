@@ -29,7 +29,7 @@ export const createCategory = async (req, res) => {
         name,
         description,
         image: imageArray[0],
-        subcategory,
+        subcategory: subcategory.toLowerCase(),
       });
       await category.save();
     }

@@ -26,7 +26,7 @@ productRoutes.post(
   isAdmin,
   upload.fields([
     { name: "images", maxCount: 5 },
-    { name: "variantImages_0", maxCount: 5 },
+    { name: "variantImages_0", maxCount: 5 }, 
     { name: "variantImages_1", maxCount: 5 },
     { name: "variantImages_2", maxCount: 5 },
   ]),
