@@ -1,6 +1,8 @@
 import Product from "../models/Product.model.js";
+import Category from "../models/Catergroy.model.js";
 import mongoose from "mongoose";
 import Websitelist from "../models/Website.model.js"; // Import the Websitelist model
+import Brand from "../models/brand.modal.js";
 // export const createProduct = async (req, res) => {
 //   try {
 //     console.log("Incoming request body:", req.body);
@@ -69,16 +71,11 @@ import Websitelist from "../models/Website.model.js"; // Import the Websitelist 
 // };
 
 export const createProduct = async (req, res) => {
-  const requiredFields = [
-    "referenceWebsite",
-    "productName",
-    "category",
-    "brand",
-  ];
+  const requiredFields = ["referenceWebsite", "productName", "category", "brand"];
 
   // Required fields check
   for (const field of requiredFields) {
-    if (!req.body[field] || req.body[field].trim() === "") {
+    if (!req.body[field]) {
       return res.status(400).json({
         success: false,
         message: `${field} is required`,
@@ -87,22 +84,31 @@ export const createProduct = async (req, res) => {
   }
 
   try {
-    // Parse JSON strings
-    if (req.body.variants && typeof req.body.variants === "string") {
-      try {
-        req.body.variants = JSON.parse(req.body.variants);
-      } catch (err) {
-        return res
-          .status(400)
-          .json({ message: "Invalid variants JSON format" });
+    // Parse JSON fields if coming as string
+    const parseJSON = (field) => {
+      if (req.body[field] && typeof req.body[field] === "string") {
+        try {
+          return JSON.parse(req.body[field]);
+        } catch (err) {
+          throw new Error(`Invalid ${field} JSON format`);
+        }
       }
+      return req.body[field];
+    };
+
+    req.body.variants = parseJSON("variants") || [];
+    req.body.specs = parseJSON("specs") || [];
+    req.body.returnPolicy = parseJSON("returnPolicy") || undefined;
+    req.body.warranty = parseJSON("warranty") || undefined;
+    req.body.tax = parseJSON("tax") || undefined;
+    req.body.dealOfTheDay = parseJSON("dealOfTheDay") || undefined;
+
+
+    if (req.body.keyFeatures && typeof req.body.keyFeatures === "string") {
+      req.body.keyFeatures = JSON.parse(req.body.keyFeatures);
     }
-    if (req.body.specs && typeof req.body.specs === "string") {
-      try {
-        req.body.specs = JSON.parse(req.body.specs);
-      } catch (err) {
-        return res.status(400).json({ message: "Invalid specs JSON format" });
-      }
+    if (req.body.tags && typeof req.body.tags === "string") {
+      req.body.tags = JSON.parse(req.body.tags);
     }
 
     // Product-level images
@@ -118,14 +124,19 @@ export const createProduct = async (req, res) => {
       });
     }
 
-    // Generate slug
-    const slug = req.body.productName
+    // Generate slug (ensure uniqueness)
+    let slug = req.body.productName
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
 
-    // Auto-fill attributesFlat
+    const existingSlug = await Product.findOne({ slug });
+    if (existingSlug) {
+      slug = `${slug}-${Date.now()}`;
+    }
+
+    // Auto-fill attributesFlat from default variant
     let attributesFlat = {};
     if (Array.isArray(req.body.variants) && req.body.variants.length > 0) {
       const defaultVariant =
@@ -134,41 +145,29 @@ export const createProduct = async (req, res) => {
         attributesFlat = { ...defaultVariant.options };
       }
     }
-    if (req.body.returnPolicy && typeof req.body.returnPolicy === "string") {
-      req.body.returnPolicy = JSON.parse(req.body.returnPolicy);
-    }
-    if (req.body.warranty && typeof req.body.warranty === "string") {
-      req.body.warranty = JSON.parse(req.body.warranty);
-    }
-    if (req.body.tax && typeof req.body.tax === "string") {
-      req.body.tax = JSON.parse(req.body.tax);
-    }
-    if (req.body.dealOfTheDay && typeof req.body.dealOfTheDay === "string") {
-      req.body.dealOfTheDay = JSON.parse(req.body.dealOfTheDay);
-    }
-    console.log(req.body);
 
     // Build product data
     const productData = {
-      referenceWebsite: req.body.referenceWebsite || null,
-      brand: req.body.brand || null,
+      referenceWebsite: req.body.referenceWebsite,
+      brand: req.body.brand,
       category: req.body.category,
       productName: req.body.productName,
       slug,
       description: req.body.description,
-      keyFeatures: req.body.keyFeatures || [],
-      specs: req.body.specs || [],
+      keyFeatures: req.body.keyFeatures,
+      specs: req.body.specs,
       images: productImages,
-      videoUrl: req.body.videoUrl || null,
       variants: req.body.variants,
-      dealOfTheDay: req.body.dealOfTheDay || {},
+      dealOfTheDay: req.body.dealOfTheDay,
+      discount: req.body.discount || null,
+      // discount: req.body.price,
       codAvailable: req.body.codAvailable ?? true,
       minOrderQty: req.body.minOrderQty || 1,
       maxOrderQty: req.body.maxOrderQty || 10,
-      returnPolicy: req.body.returnPolicy || {},
-      warranty: req.body.warranty || {},
-      tax: req.body.tax || {},
-      tags: req.body.tags || [],
+      returnPolicy: req.body.returnPolicy,
+      warranty: req.body.warranty,
+      tax: req.body.tax,
+      tags: req.body.tags,
       attributesFlat,
       seo: req.body.seo || {},
       status: req.body.status || "ACTIVE",
@@ -189,8 +188,7 @@ export const createProduct = async (req, res) => {
     console.error("Error in createProduct:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to add product",
-      error: error.message,
+      message: error.message || "Failed to add product",
     });
   }
 };
@@ -213,7 +211,7 @@ export const createMultipleProducts = async (req, res) => {
       category: product.category,
       description: product.description,
       size: product.size || "M", // Default size is "M" if not provided
-      discount: product.discount,
+      discount: product.discount || null,
       addedBy: "679c5cc89e0012636ffef9ed",
     }));
     const result = await Product.insertMany(formattedProducts);
@@ -228,136 +226,345 @@ export const createMultipleProducts = async (req, res) => {
   }
 };
 //n
+// export const getProducts = async (req, res) => {
+//   try {
+//     const {
+//       referenceWebsite,
+//       search,
+//       category,
+//       brand,
+//       minPrice,
+//       maxPrice,
+//       rating,
+//       discount,
+//       sortBy = "createdAt",
+//       sortOrder = "desc",
+//       page = 1,
+//       limit = 10,
+//     } = req.query;
+
+//     if (!referenceWebsite) {
+//       return res.status(400).json({ message: "referenceWebsite is required" });
+//     }
+
+//     const website = await Websitelist.findById(referenceWebsite);
+//     if (!website) {
+//       return res.status(404).json({ message: "Reference website not found" });
+//     }
+
+//     // ✅ Match conditions
+//     const matchStage = {
+//       referenceWebsite: new mongoose.Types.ObjectId(referenceWebsite),
+//     };
+
+//     // website.categories restrict karega products ko
+//     if (!category && website.categories?.length > 0) {
+//       matchStage.category = { $in: website.categories };
+//     }
+
+//     if (category) {
+//       const categoryDoc = await Category.findOne({ name: category.toLowerCase() });
+
+//       if (!categoryDoc) {
+//         return res.status(200).json({ products: [] });
+//       }
+//       matchStage.category = categoryDoc._id;
+//     }
+
+
+//     if (brand) {
+//       const brandArray = brand.split(",").map((b) => b.trim());
+
+//       const brandDocs = await Brand.find({ slug: { $in: brandArray } }, "_id");
+
+//       const brandIds = brandDocs.map((doc) => doc._id);
+
+//       matchStage.brand = { $in: brandIds };
+//     }
+
+
+//     // if (discount) {
+//     //   matchStage.discount = new mongoose.Types.ObjectId(discount);
+//     // }
+
+//     let advanceFilter = [];
+
+//     Object.keys(req.query).forEach((key) => {
+//       if (
+//         !["page", "limit", "sort", "category", "brand", "minPrice", "maxPrice", "rating", "referenceWebsite"].includes(key)
+//       ) {
+//         // Variants check
+//         advanceFilter.push({
+//           [`variants.options.${key}`]: { $regex: req.query[key], $options: "i" }
+//         });
+
+//         // Specs check
+//         advanceFilter.push({
+//           specs: {
+//             $elemMatch: {
+//               key: { $regex: key, $options: "i" },
+//               value: { $regex: req.query[key], $options: "i" }
+//             }
+//           }
+//         });
+//       }
+//     });
+
+//     if (advanceFilter.length > 0) {
+//       matchStage.$or = advanceFilter;
+//     }
+//     console.log(matchStage);
+
+//     if (minPrice || maxPrice) {
+//       matchStage["variants.pricing.price"] = {};
+//       if (minPrice) matchStage["variants.pricing.price"].$gte = parseFloat(minPrice);
+//       if (maxPrice) matchStage["variants.pricing.price"].$lte = parseFloat(maxPrice);
+//     }
+//     if (rating) {
+//       matchStage["rating.avg"] = { $gte: parseFloat(rating) };
+//     }
+
+//     const pageNumber = parseInt(page, 10);
+//     const pageSize = parseInt(limit, 10);
+
+//     // ✅ Aggregation Pipeline
+//     const pipeline = [
+//       { $match: matchStage },
+
+//       // Category lookup
+//       {
+//         $lookup: {
+//           from: "users",
+//           localField: "addedBy",
+//           foreignField: "_id",
+//           as: "ower",
+//         },
+//       },
+//       { $unwind: { path: "$ower", preserveNullAndEmptyArrays: true } },
+//       {
+//         $lookup: {
+//           from: "productcategories",
+//           localField: "category",
+//           foreignField: "_id",
+//           as: "category",
+//         },
+//       },
+//       { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+
+//       // Brand lookup
+//       {
+//         $lookup: {
+//           from: "brands",
+//           localField: "brand",
+//           foreignField: "_id",
+//           as: "brand",
+//         },
+//       },
+//       { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
+
+//       // // Discount lookup
+//       {
+//         $lookup: {
+//           from: "discounts",
+//           localField: "discount",
+//           foreignField: "_id",
+//           as: "discount",
+//         },
+//       },
+//       { $unwind: { path: "$discount", preserveNullAndEmptyArrays: true } },
+
+//       {
+//         $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 },
+//       },
+
+//       {
+//         $facet: {
+//           metadata: [
+//             { $count: "totalDocuments" },
+//             {
+//               $addFields: {
+//                 currentPage: pageNumber,
+//                 pageSize,
+//                 totalPages: { $ceil: { $divide: ["$totalDocuments", pageSize] } },
+//               },
+//             },
+//           ],
+//           products: [
+//             { $skip: (pageNumber - 1) * pageSize },
+//             { $limit: pageSize },
+//           ],
+//         },
+//       },
+//     ];
+
+//     const results = await Product.aggregate(pipeline);
+
+//     const metadata = results[0]?.metadata[0] || {
+//       totalDocuments: 0,
+//       currentPage: pageNumber,
+//       pageSize,
+//       totalPages: 0,
+//     };
+
+//     res.status(200).json({
+//       products: results[0] || [],
+//       pagination: metadata,
+//     });
+//   } catch (error) {
+//     console.error("Error in getProducts:", error);
+//     res.status(500).json({ message: "Failed to fetch products", error: error.message });
+//   }
+// };
+
 export const getProducts = async (req, res) => {
   try {
     const {
       referenceWebsite,
       search,
       category,
+      brand,
       minPrice,
       maxPrice,
-      sortBy = "createdAt", // Sorting field
-      sortOrder = "desc", // Sorting order
+      rating,
+      discount,
+      sortBy = "createdAt",
+      sortOrder = "desc",
       page = 1,
       limit = 10,
+      ...otherFilters
     } = req.query;
 
-    const user = req.user?.id?.toString();
-    const role = req.user?.role;
-
     if (!referenceWebsite) {
-      return res.status(400).json({ message: "Reference website is required" });
+      return res.status(400).json({ message: "referenceWebsite is required" });
     }
-
-    const pageNumber = parseInt(page, 10) || 1;
-    const pageSize = parseInt(limit, 10) || 10;
 
     const website = await Websitelist.findById(referenceWebsite);
     if (!website) {
       return res.status(404).json({ message: "Reference website not found" });
     }
 
-    if (website?.categories.length === 0) {
-      return res.status(200).json({
-        products: [],
-        pagination: {
-          totalDocuments: 0,
-          currentPage: pageNumber,
-          pageSize,
-          totalPages: 0,
-        },
-      });
-    }
-
     const matchStage = {
-      category: { $in: website.categories }, // Only products in website's categories
+      referenceWebsite: new mongoose.Types.ObjectId(referenceWebsite),
     };
 
-    if (role && role !== "admin") matchStage.addedBy = user;
-
+    // Category filter
+    if (!category && website.categories?.length > 0) {
+      matchStage.category = { $in: website.categories };
+    }
     if (category) {
-      matchStage.category = new mongoose.Types.ObjectId(category);
+      const categoryDoc = await Category.findOne({ name: category.toLowerCase() });
+      if (!categoryDoc) return res.status(200).json({ products: [], pagination: {} });
+      matchStage.category = categoryDoc._id;
     }
 
-    if (search) {
-      matchStage.$or = [
-        { productName: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-      ];
+    // Brand filter
+    if (brand) {
+      const brandArray = brand.split(",").map((b) => b.trim());
+      const brandDocs = await Brand.find({ slug: { $in: brandArray } }, "_id");
+      const brandIds = brandDocs.map((doc) => doc._id);
+      matchStage.brand = { $in: brandIds };
     }
 
+    // Rating filter
+    if (rating) matchStage["rating.avg"] = { $gte: parseFloat(rating) };
+
+    // Price filter (minPrice/maxPrice from query)
     if (minPrice || maxPrice) {
-      matchStage.actualPrice = {};
-      if (minPrice) matchStage.actualPrice.$gte = parseFloat(minPrice);
-      if (maxPrice) matchStage.actualPrice.$lte = parseFloat(maxPrice);
+      matchStage["variants"] = {
+        $elemMatch: {
+          "pricing.price": {
+            ...(minPrice && { $gte: parseFloat(minPrice) }),
+            ...(maxPrice && { $lte: parseFloat(maxPrice) }),
+          },
+        },
+      };
     }
+
+    // Advanced search parsing: "under 30k", "above 50k", etc.
+    if (search) {
+      const lowerSearch = search.toLowerCase();
+      let regexSearch = lowerSearch;
+
+      // Price pattern parsing
+      const underMatch = lowerSearch.match(/under (\d+)(k|l|m)?/);
+      const aboveMatch = lowerSearch.match(/above (\d+)(k|l|m)?/);
+
+      const priceFilter = {};
+      if (underMatch) {
+        let value = parseInt(underMatch[1]);
+        if (underMatch[2] === "k") value *= 1000;
+        else if (underMatch[2] === "l") value *= 100000;
+        else if (underMatch[2] === "m") value *= 1000000;
+        priceFilter.$lte = value;
+        regexSearch = regexSearch.replace(/under \d+[klm]?/, "").trim();
+      }
+      if (aboveMatch) {
+        let value = parseInt(aboveMatch[1]);
+        if (aboveMatch[2] === "k") value *= 1000;
+        else if (aboveMatch[2] === "l") value *= 100000;
+        else if (aboveMatch[2] === "m") value *= 1000000;
+        priceFilter.$gte = value;
+        regexSearch = regexSearch.replace(/above \d+[klm]?/, "").trim();
+      }
+
+      // Merge priceFilter with matchStage
+      if (Object.keys(priceFilter).length > 0) {
+        matchStage["variants"] = { $elemMatch: { "pricing.price": priceFilter } };
+      }
+
+      // Text search
+      if (regexSearch.length > 0) {
+        const regex = regexSearch.replace(/\s+/g, ".*");
+        matchStage.$or = [
+          { productName: { $regex: regex, $options: "i" } },
+          { description: { $regex: regex, $options: "i" } },
+          { keyFeatures: { $regex: regex, $options: "i" } },
+        ];
+      }
+    }
+
+    // Dynamic variant/spec filters
+    const variantFilters = Object.keys(otherFilters)
+      .filter((k) => k !== "referenceWebsite" && otherFilters[k])
+      .map((k) => ({
+        [`variants.options.${k}`]: { $regex: otherFilters[k], $options: "i" },
+      }));
+
+    if (variantFilters.length > 0) {
+      matchStage.$and = variantFilters;
+    }
+
+    const pageNumber = parseInt(page, 10);
+    const pageSize = parseInt(limit, 10);
 
     const pipeline = [
       { $match: matchStage },
-      {
-        $lookup: {
-          from: "productcategories", // Name of the categories collection
-          localField: "category",
-          foreignField: "_id",
-          as: "category",
-        },
-      },
-      {
-        $unwind: {
-          path: "$category",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $addFields: {
-          category: {
-            _id: "$category._id",
-            name: "$category.name",
-          },
-        },
-      },
 
-      // Added brand lookup stage
-      {
-        $lookup: {
-          from: "brands", // Change if your collection name is different
-          localField: "brand",
-          foreignField: "_id",
-          as: "brand",
-        },
-      },
-      {
-        $unwind: {
-          path: "$brand",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $addFields: {
-          brand: {
-            _id: "$brand._id",
-            name: "$brand.name",
-            logo: "$brand.logo", // assuming logo is the field for brand logo URL
-          },
-        },
-      },
+      // Populate addedBy
+      { $lookup: { from: "users", localField: "addedBy", foreignField: "_id", as: "addedBy" } },
+      { $unwind: { path: "$addedBy", preserveNullAndEmptyArrays: true } },
 
-      {
-        $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 },
-      },
+      // Category lookup
+      { $lookup: { from: "productcategories", localField: "category", foreignField: "_id", as: "category" } },
+      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+
+      // Brand lookup
+      { $lookup: { from: "brands", localField: "brand", foreignField: "_id", as: "brand" } },
+      { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
+
+      // Discount lookup
+      { $lookup: { from: "discounts", localField: "discount", foreignField: "_id", as: "discount" } },
+      { $unwind: { path: "$discount", preserveNullAndEmptyArrays: true } },
+
+      // Sort
+      { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
+
+      // Pagination
       {
         $facet: {
           metadata: [
             { $count: "totalDocuments" },
-            {
-              $addFields: {
-                currentPage: pageNumber,
-                pageSize,
-                totalPages: {
-                  $ceil: { $divide: ["$totalDocuments", pageSize] },
-                },
-              },
-            },
+            { $addFields: { currentPage: pageNumber, pageSize, totalPages: { $ceil: { $divide: ["$totalDocuments", pageSize] } } } },
           ],
           products: [
             { $skip: (pageNumber - 1) * pageSize },
@@ -367,29 +574,20 @@ export const getProducts = async (req, res) => {
       },
     ];
 
-    // Execute the aggregation pipeline
     const results = await Product.aggregate(pipeline);
+    const metadata = results[0]?.metadata[0] || { totalDocuments: 0, currentPage: pageNumber, pageSize, totalPages: 0 };
 
-    const metadata = results[0]?.metadata[0] || {
-      totalDocuments: 0,
-      currentPage: pageNumber,
-      pageSize,
-      totalPages: 0,
-    };
-    const products = results[0]?.products || [];
-
-    // Return the response
     res.status(200).json({
-      products,
+      products: results[0]?.products || [],
       pagination: metadata,
     });
   } catch (error) {
-    console.error("Error in getProducts:", error.message);
-    res
-      .status(500)
-      .json({ message: "Failed to retrieve products", error: error.message });
+    console.error("Error in getProducts:", error);
+    res.status(500).json({ message: "Failed to fetch products", error: error.message });
   }
 };
+
+
 
 // export const getProducts = async (req, res) => {
 //     try {
@@ -527,27 +725,47 @@ export const getProducts = async (req, res) => {
 
 export const getProductDetail = async (req, res) => {
   try {
+    const filters = { ...req.query };
+
     const product = await Product.findById(req.params.id)
-      .populate({
-        path: "brand",
-        select: "name logo",
-      })
-      .populate({
-        path: "category",
-        select: "name subcategory",
+      .populate("brand", "name logo")
+      .populate("category", "name subcategory")
+      // .populate("discount", "discountType value validTill")
+      .lean();
+
+    if (!product) return res.status(404).json({ message: "Product not found" });
+
+    let selectedVariant = null;
+    selectedVariant = product.variants.find((v) => {
+      // Only consider relevant keys from query
+      const filterKeys = Object.keys(filters).filter((k) => k !== "referenceWebsite");
+
+      // check each key inside v.options
+      return filterKeys.every((key) => {
+        return String(v.options[key]) === String(filters[key]);
       });
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
+    });
+
+
+    if (!selectedVariant && product.variants.length > 0) {
+      selectedVariant = product.variants[0];
     }
-    res
-      .status(200)
-      .json({ message: "Product retrieved successfully", product });
+
+    res.status(200).json({
+      message: "Product retrieved successfully",
+      product: {
+        ...product,
+        selectedVariant,
+      },
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Failed to retrieve product", error: error.message });
+    res.status(500).json({
+      message: "Failed to retrieve product",
+      error: error.message,
+    });
   }
 };
+
 // export const getProductDetail = async (req, res) => {
 //   try {
 //     const product = await Product.findById(req.params.id);
