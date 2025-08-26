@@ -5,6 +5,7 @@ export const createCategory = async (req, res) => {
   try {
     const { name, description, referenceWebsite, subcategory } = req.body;
     let imageArray = [];
+    console.log(req.file);
 
     if (req.file) {
       imageArray = [req.file.path];
@@ -54,7 +55,7 @@ export const createCategory = async (req, res) => {
 
 export const createMainCategory = async (req, res) => {
   const { subcategory } = req.body;
-  
+
 
   // if (!subcategory) {
   //   return res.status(400).json({ message: "Category name is required." });
@@ -194,9 +195,22 @@ export const updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, subcategory } = req.body;
+
+    const imageArray = req.file.path;
+
+    // get old category
+    const existingCategory = await ProductCategory.findById(id);
+    if (!existingCategory) {
+      return res.status(404).json({ message: "Category not found." });
+    }
+
+    // ✅ use new images if available, otherwise keep old ones
+    const updatedImages =
+      imageArray.length > 0 ? imageArray : existingCategory.image;
+
     const category = await ProductCategory.findByIdAndUpdate(
       id,
-      { name, description, subcategory },
+      { name, description, subcategory, image: updatedImages, },
       { new: true, runValidators: true }
     );
     if (!category) {
