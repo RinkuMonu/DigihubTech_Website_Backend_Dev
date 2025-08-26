@@ -175,6 +175,10 @@ const ProductSchema = new mongoose.Schema(
     discount: {
       type: Number, default: 0
     },
+    coupon: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Coupon",
+    },
 
     // Search & merchandising
     tags: [{ type: String, trim: true, lowercase: true }],

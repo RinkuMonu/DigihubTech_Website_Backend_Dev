@@ -22,6 +22,7 @@ import bannerRoutes from "./src/routes/banner.rotes.js";
 import review from "./src/routes/review.route.js";
 import "./cron.js";
 import brandRoutes from "./src/routes/brand.route.js";
+import router from "./src/routes/coupon.router.js";
 
 dotenv.config();
 
@@ -71,6 +72,7 @@ app.use("/api/policy", policyRoutes);
 app.use("/api/banners", bannerRoutes);
 app.use("/api/sendreview", review);
 app.use("/api/brand", brandRoutes);
+app.use("/api/coupons", router);
 
 app.post("/api/phonepe-payment", phonePeController);
 app.get("/api/dashboard", isAdmin, getDashboardData);

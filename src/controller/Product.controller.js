@@ -3,6 +3,7 @@ import Category from "../models/Catergroy.model.js";
 import mongoose from "mongoose";
 import Websitelist from "../models/Website.model.js"; // Import the Websitelist model
 import Brand from "../models/brand.modal.js";
+import couponModel from "../models/coupon.model.js";
 // export const createProduct = async (req, res) => {
 //   try {
 //     console.log("Incoming request body:", req.body);
@@ -1045,5 +1046,55 @@ export const getDealsOfTheDay = async (req, res) => {
       message: "❌ Failed to fetch deals",
       error: error.message,
     });
+  }
+};
+
+
+// apply-coupon
+export const applyCouponOnProduct = async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const { couponId } = req.body;
+
+
+    const coupon = await couponModel.findById(couponId);
+    if (!coupon) {
+      return res.status(404).json({ success: false, message: "Coupon not found" });
+    }
+
+
+    if (!coupon.isActive) {
+      return res.status(400).json({ success: false, message: "Coupon is inactive" });
+    }
+    const startDate = new Date(coupon.startDate);
+    const endDate = new Date(coupon.endDate);
+
+    // const now = new Date();
+    // if (now < startDate) {
+    //   return res.status(400).json({ success: false, message: "Coupon is not yet valid" });
+    // }
+    // if (now > endDate) {
+    //   return res.status(400).json({ success: false, message: "Coupon has expired" });
+    // }
+
+
+    const product = await Product.findByIdAndUpdate(
+      productId,
+      { coupon: coupon._id },
+      { new: true }
+    ).populate("coupon");
+
+    if (!product) {
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
+
+    res.json({
+      success: true,
+      message: "Coupon applied successfully",
+      data: product
+    });
+
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

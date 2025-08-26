@@ -8,6 +8,7 @@ import {
   updateProduct,
   setDealOfTheDay,
   getDealsOfTheDay,
+  applyCouponOnProduct,
 } from "../controller/Product.controller.js";
 import { isAdmin } from "../middleware/isAdmin.js";
 import { verifyToken } from "../middleware/verifyToken.js";
@@ -26,7 +27,7 @@ productRoutes.post(
   isAdmin,
   upload.fields([
     { name: "images", maxCount: 5 },
-    { name: "variantImages_0", maxCount: 5 }, 
+    { name: "variantImages_0", maxCount: 5 },
     { name: "variantImages_1", maxCount: 5 },
     { name: "variantImages_2", maxCount: 5 },
   ]),
@@ -52,5 +53,8 @@ productRoutes.put(
 productRoutes.post("/addmany", createMultipleProducts);
 productRoutes.post("/dealoftheday", setDealOfTheDay);
 productRoutes.get("/getdeals", getDealsOfTheDay);
+
+// apply-coupon 
+productRoutes.put("/apply-coupon/:id", applyCouponOnProduct);
 
 export default productRoutes;
