@@ -1056,28 +1056,27 @@ export const applyCouponOnProduct = async (req, res) => {
     const productId = req.params.id;
     const { couponId } = req.body;
 
-
     const coupon = await couponModel.findById(couponId);
     if (!coupon) {
       return res.status(404).json({ success: false, message: "Coupon not found" });
     }
 
-
     if (!coupon.isActive) {
       return res.status(400).json({ success: false, message: "Coupon is inactive" });
     }
+
     const startDate = new Date(coupon.startDate);
     const endDate = new Date(coupon.endDate);
+    const now = new Date();
 
-    // const now = new Date();
-    // if (now < startDate) {
-    //   return res.status(400).json({ success: false, message: "Coupon is not yet valid" });
-    // }
-    // if (now > endDate) {
-    //   return res.status(400).json({ success: false, message: "Coupon has expired" });
-    // }
+    if (now < startDate) {
+      return res.status(400).json({ success: false, message: "Coupon is not yet valid" });
+    }
+    if (now > endDate) {
+      return res.status(400).json({ success: false, message: "Coupon has expired" });
+    }
 
-
+    // ✅ Product update with coupon
     const product = await Product.findByIdAndUpdate(
       productId,
       { coupon: coupon._id },
@@ -1087,6 +1086,13 @@ export const applyCouponOnProduct = async (req, res) => {
     if (!product) {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
+
+    // ✅ Coupon update with productId
+    await couponModel.findByIdAndUpdate(
+      couponId,
+      { $addToSet: { applicableProducts: productId } }, // $addToSet avoids duplicate entries
+      { new: true }
+    );
 
     res.json({
       success: true,

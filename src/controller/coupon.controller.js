@@ -57,20 +57,25 @@ export const applyCoupon = async (req, res) => {
         }
 
         // Apply condition based on applicableTo
-        if (coupon.applicableTo === "user") {
-            if (!coupon.applicableUsers.includes(userId)) {
-                return res.status(400).json({ success: false, message: "Coupon not valid for this user" });
-            }
+        // if (coupon.applicableTo === "user") {
+        //     if (!coupon.applicableUsers.includes(userId)) {
+        //         return res.status(400).json({ success: false, message: "Coupon not valid for this user" });
+        //     }
+        // }
+
+        const alreadyUsed = coupon.userUsage.some(u => u.user.toString() === userId);
+        if (alreadyUsed) {
+            return res.status(400).json({ success: false, message: "You have already used this coupon" });
         }
 
-        if (coupon.applicableTo === "product") {
-            if (!coupon.applicableProducts.includes(productId)) {
-                return res.status(400).json({ success: false, message: "Coupon not valid for this product" });
-            }
+        if (!coupon.applicableProducts.includes(productId)) {
+            return res.status(400).json({ success: false, message: "Coupon not valid for this product" });
         }
+
 
         // ✅ Increase usage count
-        coupon.usageCount += 1;
+        coupon.totalUsed += 1;
+        coupon.userUsage.push({ userId });
         await coupon.save();
 
         // Apply discount (example: calculate new price)
