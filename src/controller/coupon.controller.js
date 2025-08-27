@@ -63,9 +63,11 @@ export const applyCoupon = async (req, res) => {
         //     }
         // }
 
-        const alreadyUsed = coupon.userUsage.some(u => u.user.toString() === userId);
-        if (alreadyUsed) {
-            return res.status(400).json({ success: false, message: "You have already used this coupon" });
+        const alreadyApplied = coupon.userUsage.some(
+            (u) => u._id === userId && u.state === "applied"
+        );
+        if (alreadyApplied) {
+            return res.status(400).json({ success: false, message: "Coupon already applied but not used" });
         }
 
         if (!coupon.applicableProducts.includes(productId)) {
@@ -75,7 +77,7 @@ export const applyCoupon = async (req, res) => {
 
         // ✅ Increase usage count
         coupon.totalUsed += 1;
-        coupon.userUsage.push({ userId });
+        coupon.userUsage.push({ userId, state: "applied" });
         await coupon.save();
 
         // Apply discount (example: calculate new price)
@@ -96,6 +98,8 @@ export const applyCoupon = async (req, res) => {
 
         res.json({ success: true, message: "Coupon applied successfully", discount: discountInfo });
     } catch (err) {
+        console.log(err);
+
         res.status(500).json({ success: false, message: err.message });
     }
 };

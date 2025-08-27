@@ -4,29 +4,33 @@ import Cart from "../models/Cart.model.js";
 import User from "../models/User.model.js";
 import mongoose from "mongoose";
 
-// Create a new order
+
 export const createOrder = async (req, res) => {
   try {
-    const { products, shippingAddress, type = null } = req.body;
+    const { products, shippingAddress, type = null, couponCode } = req.body;
     const customer = req.user?.id;
     const referenceWebsite = req.user?.referenceWebsite;
+
+    // validation
     if (!products || products.length === 0) {
       return res
         .status(400)
         .json({ message: "At least one product is required" });
     }
+
     let totalAmount = 0;
-    let updatedProducts = products;
+    let updatedProducts = [...products]; // copy
+
     for (let productItem of products) {
       const product = await Product.findById(productItem.product);
+
       if (!product) {
         return res
           .status(400)
-          .json({
-            message: `Product not found for ID: ${productItem.product}`,
-          });
+          .json({ message: `Product not found for ID: ${productItem.product}` });
       }
 
+      // seller ka wallet update karna
       await User.findByIdAndUpdate(
         product.addedBy,
         [
@@ -40,9 +44,7 @@ export const createOrder = async (req, res) => {
                       product.actualPrice,
                       {
                         $divide: [
-                          {
-                            $multiply: [product.actualPrice, "$commissionRate"],
-                          },
+                          { $multiply: [product.actualPrice, "$commissionRate"] },
                           100,
                         ],
                       },
@@ -56,23 +58,35 @@ export const createOrder = async (req, res) => {
         { new: true }
       );
 
+      // product owner add karna
       const index = updatedProducts.findIndex(
         (x) => x.product === product._id.toString()
       );
-      updatedProducts[index].owner = product.addedBy;
+      if (index !== -1) {
+        updatedProducts[index].owner = product.addedBy;
+      }
 
+      // total amount calculate karna
       totalAmount += product.actualPrice * productItem.quantity;
     }
+
+    // order create karna
     const newOrder = new Order({
       referenceWebsite,
       customer,
       products: updatedProducts,
       totalAmount,
       shippingAddress,
+      couponCode: couponCode || null,
+      status: "pending", // default status
+      createdAt: Date.now(),
     });
+
     await newOrder.save();
+
     const identifier = `${customer}-${referenceWebsite}`;
 
+    // agar cart se order ban raha hai to cart clear karo
     if (type === "cart") {
       const cart = await Cart.findOne({ identifier });
       if (cart) {
@@ -83,15 +97,20 @@ export const createOrder = async (req, res) => {
         await cart.save();
       }
     }
-    res
-      .status(201)
-      .json({ message: "Order created successfully", order: newOrder });
+
+    res.status(201).json({
+      message: "Order created successfully",
+      order: newOrder,
+    });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Failed to create order", error: error.message });
+    console.error("Order create error:", error);
+    res.status(500).json({
+      message: "Failed to create order",
+      error: error.message,
+    });
   }
 };
+
 
 export const getOrdersByReferenceWebsite = async (req, res) => {
   try {

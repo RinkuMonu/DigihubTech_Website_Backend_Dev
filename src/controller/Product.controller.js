@@ -1050,7 +1050,7 @@ export const getDealsOfTheDay = async (req, res) => {
 };
 
 
-// apply-coupon
+// add-coupon
 export const applyCouponOnProduct = async (req, res) => {
   try {
     const productId = req.params.id;
