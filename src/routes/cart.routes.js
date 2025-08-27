@@ -4,7 +4,7 @@ import {
     updateCartItemQuantity,
     removeItemFromCart,
     getCart,
-    checkoutCart
+    // checkoutCart
 } from '../controller/Cart.contorller.js';  // Adjust path based on your directory structure
 import { verifyToken } from '../middleware/verifyToken.js';
 
@@ -23,6 +23,6 @@ router.post('/remove', verifyToken, removeItemFromCart);
 router.get('/', verifyToken, getCart);
 
 // 5. Checkout cart
-router.post('/checkout', verifyToken, checkoutCart);
+// router.post('/checkout', verifyToken, checkoutCart);
 
 export default router;

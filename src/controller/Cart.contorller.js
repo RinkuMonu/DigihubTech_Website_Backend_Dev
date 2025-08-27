@@ -235,8 +235,8 @@ export const addItemToCart = async (req, res) => {
         if (!cart) {
             cart = new Cart({
                 identifier,
-                items: [{ product: productId, quantity, price: product.price, actualPrice: product.actualPrice, total: product.actualPrice * quantity }],
-                totalAmount: product.actualPrice * quantity,
+                items: [{ product: productId, quantity, price: product.variants[0].pricing?.mrp, actualPrice: product.variants[0].pricing?.price, total: product.variants[0].pricing?.price * quantity }],
+                totalAmount: product.variants[0].pricing?.price * quantity,
             });
         } else {
             const existingItemIndex = cart.items.findIndex(item => item.product.toString() === productId);
@@ -245,7 +245,7 @@ export const addItemToCart = async (req, res) => {
                 item.quantity += quantity;
                 item.total = item.quantity * item.price;
             } else {
-                cart.items.push({ product: productId, quantity, price: product.price, actualPrice: product.actualPrice, total: product.actualPrice * quantity });
+                cart.items.push({ product: productId, quantity, price: product.variants[0].pricing?.mrp, actualPrice: product.variants[0].pricing?.price, total: product.variants[0].pricing?.price * quantity });
             }
         }
         cart.totalAmount = cart.items.reduce((total, item) => total + item.total, 0);
@@ -378,7 +378,8 @@ export const getCart = async (req, res) => {
             return res.status(400).json({ message: 'Identifier is required.' });
         }
 
-        const cart = await Cart.findOne({ identifier }).populate('items.product', 'productName images price actualPrice discount');
+        const cart = await Cart.findOne({ identifier }).populate('items.product');
+
         if (!cart) {
             return res.status(404).json({ message: 'No cart found for the user and website.' });
         }
@@ -391,27 +392,27 @@ export const getCart = async (req, res) => {
 };
 
 // 5. Checkout Cart
-export const checkoutCart = async (req, res) => {
-    try {
-        const userId = req.user?.id;
-        const referenceWebsite = req.user?.referenceWebsite;
-        const identifier = `${userId}-${referenceWebsite}`;
+// export const checkoutCart = async (req, res) => {
+//     try {
+//         const userId = req.user?.id;
+//         const referenceWebsite = req.user?.referenceWebsite;
+//         const identifier = `${userId}-${referenceWebsite}`;
 
-        if (!identifier) {
-            return res.status(400).json({ message: 'Identifier is required.' });
-        }
-        const cart = await Cart.findOne({ identifier });
-        if (!cart) {
-            return res.status(404).json({ message: 'No cart found for the user and website.' });
-        }
+//         if (!identifier) {
+//             return res.status(400).json({ message: 'Identifier is required.' });
+//         }
+//         const cart = await Cart.findOne({ identifier });
+//         if (!cart) {
+//             return res.status(404).json({ message: 'No cart found for the user and website.' });
+//         }
 
-        cart.isCheckedOut = true;
-        cart.lastUpdated = Date.now();
-        await cart.save();
+//         cart.isCheckedOut = true;
+//         cart.lastUpdated = Date.now();
+//         await cart.save();
 
-        res.status(200).json({ message: 'Cart checked out successfully', cart });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Failed to checkout cart', error: error.message });
-    }
-};
+//         res.status(200).json({ message: 'Cart checked out successfully', cart });
+//     } catch (error) {
+//         console.error(error);
+//         res.status(500).json({ message: 'Failed to checkout cart', error: error.message });
+//     }
+// };

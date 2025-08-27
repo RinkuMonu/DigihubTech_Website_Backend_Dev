@@ -54,7 +54,7 @@ productRoutes.post("/addmany", createMultipleProducts);
 productRoutes.post("/dealoftheday", setDealOfTheDay);
 productRoutes.get("/getdeals", getDealsOfTheDay);
 
-// apply-coupon 
+// add-coupon 
 productRoutes.put("/apply-coupon/:id", applyCouponOnProduct);
 
 export default productRoutes;

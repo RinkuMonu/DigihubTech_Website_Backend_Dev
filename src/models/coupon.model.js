@@ -66,7 +66,9 @@ const couponSchema = new mongoose.Schema(
         userUsage: [
             {
                 user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-                // usedCount: { type: Number, default: 0 },
+                state: { type: String, enum: ["applied", "used"], default: "applied" },
+                appliedAt: { type: Date, default: Date.now },
+                usedAt: { type: Date },
             },
         ],
 
