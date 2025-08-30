@@ -78,7 +78,7 @@ const VariantSchema = new mongoose.Schema(
     dimensions: Dimensions,
     isDefault: { type: Boolean, default: false },
   },
-  { _id: false, timestamps: false }
+  { timestamps: false }
 );
 
 /** ---------- Product ---------- **/

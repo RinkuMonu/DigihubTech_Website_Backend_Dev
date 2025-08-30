@@ -72,8 +72,8 @@ import couponModel from "../models/coupon.model.js";
 // };
 
 export const createProduct = async (req, res) => {
+  req.body = JSON.parse(req.body.productData)
   const requiredFields = ["referenceWebsite", "productName", "category", "brand"];
-
   // Required fields check
   for (const field of requiredFields) {
     if (!req.body[field]) {
@@ -554,8 +554,8 @@ export const getProducts = async (req, res) => {
       { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
 
       // Discount lookup
-      { $lookup: { from: "discounts", localField: "discount", foreignField: "_id", as: "discount" } },
-      { $unwind: { path: "$discount", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "coupons", localField: "coupon", foreignField: "_id", as: "coupon" } },
+      { $unwind: { path: "$coupon", preserveNullAndEmptyArrays: true } },
 
       // Sort
       { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
@@ -792,6 +792,7 @@ export const updateProduct = async (req, res) => {
     if (!existingProduct) {
       return res.status(404).json({ message: "Product not found" });
     }
+    req.body = JSON.parse(req.body.productData)
 
     const updateData = { ...req.body };
     console.log("jhgfdsfghjkgfdsghj", updateData);
@@ -1056,6 +1057,29 @@ export const applyCouponOnProduct = async (req, res) => {
     const productId = req.params.id;
     const { couponId } = req.body;
 
+    if (couponId == "none") {
+      const product = await Product.findByIdAndUpdate(
+        productId,
+        { $unset: { coupon: "" } }, // remove coupon field
+        { new: true }
+      );
+
+      if (!product) {
+        return res.status(404).json({ success: false, message: "Product not found" });
+      }
+
+      await couponModel.updateMany(
+        { applicableProducts: productId },
+        { $pull: { applicableProducts: productId } }
+      );
+
+      return res.json({
+        success: true,
+        message: "Coupon removed successfully",
+        data: product,
+      });
+    }
+
     const coupon = await couponModel.findById(couponId);
     if (!coupon) {
       return res.status(404).json({ success: false, message: "Coupon not found" });
@@ -1076,7 +1100,7 @@ export const applyCouponOnProduct = async (req, res) => {
       return res.status(400).json({ success: false, message: "Coupon has expired" });
     }
 
-    // ✅ Product update with coupon
+    // ✅ Apply coupon to product
     const product = await Product.findByIdAndUpdate(
       productId,
       { coupon: coupon._id },
@@ -1087,20 +1111,21 @@ export const applyCouponOnProduct = async (req, res) => {
       return res.status(404).json({ success: false, message: "Product not found" });
     }
 
-    // ✅ Coupon update with productId
+    // ✅ Update coupon with product
     await couponModel.findByIdAndUpdate(
       couponId,
-      { $addToSet: { applicableProducts: productId } }, // $addToSet avoids duplicate entries
+      { $addToSet: { applicableProducts: productId } },
       { new: true }
     );
 
     res.json({
       success: true,
       message: "Coupon applied successfully",
-      data: product
+      data: product,
     });
 
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+

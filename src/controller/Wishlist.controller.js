@@ -82,7 +82,9 @@ export const getWishlist = async (req, res) => {
             return res.status(400).json({ message: 'Identifier is required.' });
         }
 
-        const wishlist = await Wishlist.findOne({ identifier }).populate('items.product', 'productName images price actualPrice discount');
+        const wishlist = await Wishlist.findOne({ identifier }).populate('items.product'
+            
+        );
         if (!wishlist) {
             return res.status(404).json({ message: 'No wishlist found.' });
         }
