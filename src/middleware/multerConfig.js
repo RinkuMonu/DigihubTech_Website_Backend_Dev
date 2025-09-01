@@ -9,9 +9,9 @@ import { CloudinaryStorage } from 'multer-storage-cloudinary';
 //     api_secret: "kavO7bGj_c8gXrZQ7JAGGVXR6Tc",
 // });
 cloudinary.config({
-    cloud_name: "dpjkoijtc",
-    api_key: "791936832448338",
-    api_secret: "Z20wmQTxg3R3BbQGYLWTvEjfqiQ",
+    cloud_name: "dhx2iuesd",
+    api_key: "226277335295733",
+    api_secret: "SeUBG1eOCJlU4dWlbSyvcwT4plA",
 });
 
 
@@ -20,7 +20,7 @@ const storage = new CloudinaryStorage({
     cloudinary,
     params: {
         folder: 'uploads', // Folder name in Cloudinary
-        allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'], 
+        allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
     },
 });
 
