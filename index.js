@@ -49,7 +49,7 @@ app.use(
       "http://localhost:4005",
       "http://localhost:4004",
       "https://yourfrontenddomain.com",
-      "https://jajamblockprints.com",
+      "https://devadmin.digihubtech.in",
       "https://admin.jajamblockprints.com",
       "https://slsxt366-4002.inc1.devtunnels.ms/",
       "https://admin.digihubtech.in",
