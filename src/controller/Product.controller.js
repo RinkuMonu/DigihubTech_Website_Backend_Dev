@@ -147,6 +147,24 @@ export const createProduct = async (req, res) => {
       }
     }
 
+    // function deepLowercase(obj) {
+    //   if (Array.isArray(obj)) {
+    //     return obj.map(deepLowercase);
+    //   } else if (obj && typeof obj === "object") {
+    //     const newObj = {};
+    //     for (const [key, value] of Object.entries(obj)) {
+    //       // 🔥 Key as it is rakhna, sirf value lowercase karo
+    //       newObj[key] = deepLowercase(value);
+    //     }
+    //     return newObj;
+    //   } else if (typeof obj === "string") {
+    //     return obj.toLowerCase();
+    //   }
+    //   return obj;
+    // }
+
+    // console.log(deepLowercase(req.body.variants));
+
     // Build product data
     const productData = {
       referenceWebsite: req.body.referenceWebsite,
@@ -434,6 +452,7 @@ export const getProducts = async (req, res) => {
       limit = 10,
       ...otherFilters
     } = req.query;
+    console.log(otherFilters);
 
     if (!referenceWebsite) {
       return res.status(400).json({ message: "referenceWebsite is required" });
@@ -483,6 +502,7 @@ export const getProducts = async (req, res) => {
 
     // Advanced search parsing: "under 30k", "above 50k", etc.
     if (search) {
+
       const lowerSearch = search.toLowerCase();
       let regexSearch = lowerSearch;
 
@@ -528,8 +548,22 @@ export const getProducts = async (req, res) => {
     const variantFilters = Object.keys(otherFilters)
       .filter((k) => k !== "referenceWebsite" && otherFilters[k])
       .map((k) => ({
-        [`variants.options.${k}`]: { $regex: otherFilters[k], $options: "i" },
+        $or: [
+          { [`variants.options.${k.toLowerCase()}`]: { $regex: otherFilters[k], $options: "i" } },
+          {
+            specs: {
+              $elemMatch: {
+                key: k,
+                value: { $regex: otherFilters[k], $options: "i" }
+              }
+            }
+          },
+          {
+            "discount": otherFilters.k
+          }
+        ]
       }));
+
 
     if (variantFilters.length > 0) {
       matchStage.$and = variantFilters;
@@ -1035,7 +1069,7 @@ export const getDealsOfTheDay = async (req, res) => {
       "dealOfTheDay.status": true,
       "dealOfTheDay.startTime": { $lte: istTime },
       "dealOfTheDay.endTime": { $gte: istTime },
-    });
+    }).populate('category');
 
     res.status(200).json({
       message: "✅ Active deals fetched successfully",
