@@ -151,7 +151,7 @@ export const adminLogin = async (req, res) => {
       });
     }
 
-  
+
     const allowedRoles = ["super-admin", "admin", "vendor"];
 
     const user = await User.findOne({

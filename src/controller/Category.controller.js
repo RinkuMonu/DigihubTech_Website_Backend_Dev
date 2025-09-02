@@ -54,32 +54,35 @@ export const createCategory = async (req, res) => {
 };
 
 export const createMainCategory = async (req, res) => {
-  const { subcategory } = req.body;
+  const { subcategory, referenceWebsite } = req.body;
 
-
-  // if (!subcategory) {
-  //   return res.status(400).json({ message: "Category name is required." });
-  // }
+  if (!subcategory) {
+    return res.status(400).json({ message: "Category name is required." });
+  }
 
   try {
     // Check if category already exists
-    const existingCategory = await ProductCategory.findOne({
-      subcategory: subcategory,
-    });
+    const existingCategory = await ProductCategory.findOne({ subcategory });
     if (existingCategory) {
       return res.status(409).json({ message: "Category already exists." });
     }
 
-    // Create new category document
-    const newCategory = new ProductCategory({ subcategory: subcategory });
+    // Create new category
+    const newCategory = new ProductCategory({ subcategory });
     await newCategory.save();
+
+    // If referenceWebsite is provided, link category to website
+    if (referenceWebsite) {
+      await Websitelist.findByIdAndUpdate(referenceWebsite, {
+        $addToSet: { categories: newCategory._id },
+      });
+    }
 
     return res.status(201).json({
       message: "Category created successfully.",
       category: newCategory,
     });
   } catch (error) {
-    // Mongoose validation error
     if (error.name === "ValidationError") {
       return res.status(400).json({ message: error.message });
     }
@@ -89,6 +92,7 @@ export const createMainCategory = async (req, res) => {
       .json({ message: "Server error while creating category." });
   }
 };
+
 
 export const getMainCategory = async (_, res) => {
   try {
@@ -165,7 +169,8 @@ export const updateMainCategory = async (req, res) => {
 // Get all product categories
 export const getCategories = async (req, res) => {
   try {
-    const categories = await ProductCategory.find();
+    const allCategories = await ProductCategory.find();
+    const categories = allCategories.filter(data => data.name)
     res.status(200).json(categories);
   } catch (error) {
     res
@@ -231,10 +236,22 @@ export const updateCategory = async (req, res) => {
 export const deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
+    const { referenceWebsite } = req.body;
+
+
+    // Find and delete category
     const category = await ProductCategory.findByIdAndDelete(id);
     if (!category) {
       return res.status(404).json({ message: "Category not found." });
     }
+
+    // If category was linked to a referenceWebsite, remove it from that website
+    if (referenceWebsite) {
+      await Websitelist.findByIdAndUpdate(referenceWebsite, {
+        $pull: { categories: category._id },
+      });
+    }
+
     res.status(200).json({ message: "Category deleted successfully." });
   } catch (error) {
     res
@@ -242,3 +259,4 @@ export const deleteCategory = async (req, res) => {
       .json({ message: "Failed to delete category.", error: error.message });
   }
 };
+
