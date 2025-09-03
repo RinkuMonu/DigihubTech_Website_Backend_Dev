@@ -54,6 +54,7 @@ app.use(
       "https://slsxt366-4002.inc1.devtunnels.ms/",
       "https://admin.digihubtech.in",
       "https://website.digihubtech.in",
+      "https://fin-unique.com",
     ], // allow specific frontend domains
     credentials: true, // allow cookies and headers like Authorization
   })
