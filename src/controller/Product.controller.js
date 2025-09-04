@@ -72,8 +72,13 @@ import couponModel from "../models/coupon.model.js";
 // };
 
 export const createProduct = async (req, res) => {
-  req.body = JSON.parse(req.body.productData)
-  const requiredFields = ["referenceWebsite", "productName", "category", "brand"];
+  req.body = JSON.parse(req.body.productData);
+  const requiredFields = [
+    "referenceWebsite",
+    "productName",
+    "category",
+    "brand",
+  ];
   // Required fields check
   for (const field of requiredFields) {
     if (!req.body[field]) {
@@ -103,7 +108,6 @@ export const createProduct = async (req, res) => {
     req.body.warranty = parseJSON("warranty") || undefined;
     req.body.tax = parseJSON("tax") || undefined;
     req.body.dealOfTheDay = parseJSON("dealOfTheDay") || undefined;
-
 
     if (req.body.keyFeatures && typeof req.body.keyFeatures === "string") {
       req.body.keyFeatures = JSON.parse(req.body.keyFeatures);
@@ -290,7 +294,6 @@ export const createMultipleProducts = async (req, res) => {
 //       matchStage.category = categoryDoc._id;
 //     }
 
-
 //     if (brand) {
 //       const brandArray = brand.split(",").map((b) => b.trim());
 
@@ -300,7 +303,6 @@ export const createMultipleProducts = async (req, res) => {
 
 //       matchStage.brand = { $in: brandIds };
 //     }
-
 
 //     // if (discount) {
 //     //   matchStage.discount = new mongoose.Types.ObjectId(discount);
@@ -450,9 +452,10 @@ export const getProducts = async (req, res) => {
       sortOrder = "desc",
       page = 1,
       limit = 10,
+      subcategory,
       ...otherFilters
     } = req.query;
-    console.log(otherFilters);
+    console.log(subcategory);
 
     if (!referenceWebsite) {
       return res.status(400).json({ message: "referenceWebsite is required" });
@@ -468,13 +471,26 @@ export const getProducts = async (req, res) => {
     };
 
     // Category filter
-    if (!category && website.categories?.length > 0) {
-      matchStage.category = { $in: website.categories };
-    }
-    if (category) {
-      const categoryDoc = await Category.findOne({ name: category.toLowerCase() });
-      if (!categoryDoc) return res.status(200).json({ products: [], pagination: {} });
-      matchStage.category = categoryDoc._id;
+    const filterName = subcategory || category;
+
+    if (filterName) {
+      console.log("🟡 FilterName Received:", filterName);
+      const normalizedFilter = filterName.trim();
+
+      const categoryQuery = {
+        name: {
+          $regex: normalizedFilter,
+          $options: "i",
+        },
+      };
+      const categoryDocs = await Category.find(categoryQuery, "_id");
+
+      if (!categoryDocs.length) {
+        console.warn("⚠️ No category matched, fallback to website categories.");
+        matchStage.category = { $in: website.categories };
+      } else {
+        matchStage.category = { $in: categoryDocs.map((c) => c._id) };
+      }
     }
 
     // Brand filter
@@ -502,7 +518,6 @@ export const getProducts = async (req, res) => {
 
     // Advanced search parsing: "under 30k", "above 50k", etc.
     if (search) {
-
       const lowerSearch = search.toLowerCase();
       let regexSearch = lowerSearch;
 
@@ -530,7 +545,9 @@ export const getProducts = async (req, res) => {
 
       // Merge priceFilter with matchStage
       if (Object.keys(priceFilter).length > 0) {
-        matchStage["variants"] = { $elemMatch: { "pricing.price": priceFilter } };
+        matchStage["variants"] = {
+          $elemMatch: { "pricing.price": priceFilter },
+        };
       }
 
       // Text search
@@ -549,21 +566,25 @@ export const getProducts = async (req, res) => {
       .filter((k) => k !== "referenceWebsite" && otherFilters[k])
       .map((k) => ({
         $or: [
-          { [`variants.options.${k.toLowerCase()}`]: { $regex: otherFilters[k], $options: "i" } },
+          {
+            [`variants.options.${k.toLowerCase()}`]: {
+              $regex: otherFilters[k],
+              $options: "i",
+            },
+          },
           {
             specs: {
               $elemMatch: {
                 key: k,
-                value: { $regex: otherFilters[k], $options: "i" }
-              }
-            }
+                value: { $regex: otherFilters[k], $options: "i" },
+              },
+            },
           },
           {
-            "discount": otherFilters.k
-          }
-        ]
+            discount: otherFilters.k,
+          },
+        ],
       }));
-
 
     if (variantFilters.length > 0) {
       matchStage.$and = variantFilters;
@@ -576,19 +597,47 @@ export const getProducts = async (req, res) => {
       { $match: matchStage },
 
       // Populate addedBy
-      { $lookup: { from: "users", localField: "addedBy", foreignField: "_id", as: "addedBy" } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "addedBy",
+          foreignField: "_id",
+          as: "addedBy",
+        },
+      },
       { $unwind: { path: "$addedBy", preserveNullAndEmptyArrays: true } },
 
       // Category lookup
-      { $lookup: { from: "productcategories", localField: "category", foreignField: "_id", as: "category" } },
+      {
+        $lookup: {
+          from: "productcategories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
       { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
 
       // Brand lookup
-      { $lookup: { from: "brands", localField: "brand", foreignField: "_id", as: "brand" } },
+      {
+        $lookup: {
+          from: "brands",
+          localField: "brand",
+          foreignField: "_id",
+          as: "brand",
+        },
+      },
       { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
 
       // Discount lookup
-      { $lookup: { from: "coupons", localField: "coupon", foreignField: "_id", as: "coupon" } },
+      {
+        $lookup: {
+          from: "coupons",
+          localField: "coupon",
+          foreignField: "_id",
+          as: "coupon",
+        },
+      },
       { $unwind: { path: "$coupon", preserveNullAndEmptyArrays: true } },
 
       // Sort
@@ -599,7 +648,15 @@ export const getProducts = async (req, res) => {
         $facet: {
           metadata: [
             { $count: "totalDocuments" },
-            { $addFields: { currentPage: pageNumber, pageSize, totalPages: { $ceil: { $divide: ["$totalDocuments", pageSize] } } } },
+            {
+              $addFields: {
+                currentPage: pageNumber,
+                pageSize,
+                totalPages: {
+                  $ceil: { $divide: ["$totalDocuments", pageSize] },
+                },
+              },
+            },
           ],
           products: [
             { $skip: (pageNumber - 1) * pageSize },
@@ -610,7 +667,12 @@ export const getProducts = async (req, res) => {
     ];
 
     const results = await Product.aggregate(pipeline);
-    const metadata = results[0]?.metadata[0] || { totalDocuments: 0, currentPage: pageNumber, pageSize, totalPages: 0 };
+    const metadata = results[0]?.metadata[0] || {
+      totalDocuments: 0,
+      currentPage: pageNumber,
+      pageSize,
+      totalPages: 0,
+    };
 
     res.status(200).json({
       products: results[0]?.products || [],
@@ -618,11 +680,11 @@ export const getProducts = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in getProducts:", error);
-    res.status(500).json({ message: "Failed to fetch products", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Failed to fetch products", error: error.message });
   }
 };
-
-
 
 // export const getProducts = async (req, res) => {
 //     try {
@@ -773,14 +835,15 @@ export const getProductDetail = async (req, res) => {
     let selectedVariant = null;
     selectedVariant = product.variants.find((v) => {
       // Only consider relevant keys from query
-      const filterKeys = Object.keys(filters).filter((k) => k !== "referenceWebsite");
+      const filterKeys = Object.keys(filters).filter(
+        (k) => k !== "referenceWebsite"
+      );
 
       // check each key inside v.options
       return filterKeys.every((key) => {
         return String(v.options[key]) === String(filters[key]);
       });
     });
-
 
     if (!selectedVariant && product.variants.length > 0) {
       selectedVariant = product.variants[0];
@@ -826,7 +889,7 @@ export const updateProduct = async (req, res) => {
     if (!existingProduct) {
       return res.status(404).json({ message: "Product not found" });
     }
-    req.body = JSON.parse(req.body.productData)
+    req.body = JSON.parse(req.body.productData);
 
     const updateData = { ...req.body };
     console.log("jhgfdsfghjkgfdsghj", updateData);
@@ -1069,7 +1132,7 @@ export const getDealsOfTheDay = async (req, res) => {
       "dealOfTheDay.status": true,
       "dealOfTheDay.startTime": { $lte: istTime },
       "dealOfTheDay.endTime": { $gte: istTime },
-    }).populate('category');
+    }).populate("category");
 
     res.status(200).json({
       message: "✅ Active deals fetched successfully",
@@ -1083,7 +1146,6 @@ export const getDealsOfTheDay = async (req, res) => {
     });
   }
 };
-
 
 // add-coupon
 export const applyCouponOnProduct = async (req, res) => {
@@ -1099,7 +1161,9 @@ export const applyCouponOnProduct = async (req, res) => {
       );
 
       if (!product) {
-        return res.status(404).json({ success: false, message: "Product not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Product not found" });
       }
 
       await couponModel.updateMany(
@@ -1116,11 +1180,15 @@ export const applyCouponOnProduct = async (req, res) => {
 
     const coupon = await couponModel.findById(couponId);
     if (!coupon) {
-      return res.status(404).json({ success: false, message: "Coupon not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Coupon not found" });
     }
 
     if (!coupon.isActive) {
-      return res.status(400).json({ success: false, message: "Coupon is inactive" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Coupon is inactive" });
     }
 
     const startDate = new Date(coupon.startDate);
@@ -1128,10 +1196,14 @@ export const applyCouponOnProduct = async (req, res) => {
     const now = new Date();
 
     if (now < startDate) {
-      return res.status(400).json({ success: false, message: "Coupon is not yet valid" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Coupon is not yet valid" });
     }
     if (now > endDate) {
-      return res.status(400).json({ success: false, message: "Coupon has expired" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Coupon has expired" });
     }
 
     // ✅ Apply coupon to product
@@ -1142,7 +1214,9 @@ export const applyCouponOnProduct = async (req, res) => {
     ).populate("coupon");
 
     if (!product) {
-      return res.status(404).json({ success: false, message: "Product not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     }
 
     // ✅ Update coupon with product
@@ -1157,9 +1231,7 @@ export const applyCouponOnProduct = async (req, res) => {
       message: "Coupon applied successfully",
       data: product,
     });
-
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
