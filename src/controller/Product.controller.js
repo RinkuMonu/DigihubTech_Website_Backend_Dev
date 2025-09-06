@@ -437,6 +437,283 @@ export const createMultipleProducts = async (req, res) => {
 //   }
 // };
 
+// export const getProducts = async (req, res) => {
+//   try {
+//     const {
+//       referenceWebsite,
+//       search,
+//       category,
+//       brand,
+//       minPrice,
+//       maxPrice,
+//       rating,
+//       discount,
+//       inStock, // Add this
+
+//       sortBy = "createdAt",
+//       sortOrder = "desc",
+//       page = 1,
+//       limit = 10,
+//       subcategory,
+//       ...otherFilters
+//     } = req.query;
+
+//     console.log("sfsdfsdfdsf sdfsf sd ");
+//     console.log("brand ::", req.query);
+
+//     if (!referenceWebsite) {
+//       return res.status(400).json({ message: "referenceWebsite is required" });
+//     }
+
+//     const website = await Websitelist.findById(referenceWebsite);
+//     if (!website) {
+//       return res.status(404).json({ message: "Reference website not found" });
+//     }
+
+//     const matchStage = {
+//       referenceWebsite: new mongoose.Types.ObjectId(referenceWebsite),
+//     };
+
+//     // Brand filter
+//     if (brand) {
+//       console.log("🟡 Brand Filter Received:", brand);
+//       const brandArray = brand.split(",").map((b) => b.trim());
+//       console.log("brandArray ::", brandArray);
+
+//       const brandDocs = await Brand.find({ slug: { $in: brandArray } }, "_id");
+//       console.log("brandDocs ::", brandDocs);
+//       const brandIds = brandDocs.map((doc) => doc._id);
+//       console.log("brandIds ::", brandIds);
+
+//       matchStage.brand = { $in: brandIds };
+//     }
+
+
+
+
+//     // Category filter
+//     const filterName = subcategory || category;
+
+//     if (filterName) {
+//       console.log("🟡 FilterName Received:", filterName);
+//       const normalizedFilter = filterName.trim();
+
+//       const categoryQuery = {
+//         name: {
+//           $regex: normalizedFilter,
+//           $options: "i",
+//         },
+//       };
+//       const categoryDocs = await Category.find(categoryQuery, "_id");
+
+//       if (!categoryDocs.length) {
+//         console.warn("⚠️ No category matched, fallback to website categories.");
+//         matchStage.category = { $in: website.categories };
+//       } else {
+//         matchStage.category = { $in: categoryDocs.map((c) => c._id) };
+//       }
+//     }
+
+
+//     // In Stock filter - ADD THIS SECTION
+//     if (inStock === "true") {
+//       matchStage["variants"] = {
+//         $elemMatch: {
+//           $or: [
+//             { "inventory.totalStock": { $gt: 0 } },
+//             { status: "IN_STOCK" },
+//             { status: "ACTIVE" }
+//           ]
+//         }
+//       };
+//     }
+
+//     // Rating filter
+//     if (rating) matchStage["rating.avg"] = { $gte: parseFloat(rating) };
+
+//     // Price filter (minPrice/maxPrice from query)
+//     if (minPrice || maxPrice) {
+//       matchStage["variants"] = {
+//         $elemMatch: {
+//           "pricing.price": {
+//             ...(minPrice && { $gte: parseFloat(minPrice) }),
+//             ...(maxPrice && { $lte: parseFloat(maxPrice) }),
+//           },
+//         },
+//       };
+//     }
+
+//     // Advanced search parsing: "under 30k", "above 50k", etc.
+//     if (search) {
+//       const lowerSearch = search.toLowerCase();
+//       let regexSearch = lowerSearch;
+
+//       // Price pattern parsing
+//       const underMatch = lowerSearch.match(/under (\d+)(k|l|m)?/);
+//       const aboveMatch = lowerSearch.match(/above (\d+)(k|l|m)?/);
+
+//       const priceFilter = {};
+//       if (underMatch) {
+//         let value = parseInt(underMatch[1]);
+//         if (underMatch[2] === "k") value *= 1000;
+//         else if (underMatch[2] === "l") value *= 100000;
+//         else if (underMatch[2] === "m") value *= 1000000;
+//         priceFilter.$lte = value;
+//         regexSearch = regexSearch.replace(/under \d+[klm]?/, "").trim();
+//       }
+//       if (aboveMatch) {
+//         let value = parseInt(aboveMatch[1]);
+//         if (aboveMatch[2] === "k") value *= 1000;
+//         else if (aboveMatch[2] === "l") value *= 100000;
+//         else if (aboveMatch[2] === "m") value *= 1000000;
+//         priceFilter.$gte = value;
+//         regexSearch = regexSearch.replace(/above \d+[klm]?/, "").trim();
+//       }
+
+//       // Merge priceFilter with matchStage
+//       if (Object.keys(priceFilter).length > 0) {
+//         matchStage["variants"] = {
+//           $elemMatch: { "pricing.price": priceFilter },
+//         };
+//       }
+
+//       // Text search
+//       if (regexSearch.length > 0) {
+//         const regex = regexSearch.replace(/\s+/g, ".*");
+//         matchStage.$or = [
+//           { productName: { $regex: regex, $options: "i" } },
+//           { description: { $regex: regex, $options: "i" } },
+//           { keyFeatures: { $regex: regex, $options: "i" } },
+//         ];
+//       }
+//     }
+
+//     // Dynamic variant/spec filters
+//     const variantFilters = Object.keys(otherFilters)
+//       .filter((k) => k !== "referenceWebsite" && otherFilters[k])
+//       .map((k) => ({
+//         $or: [
+//           {
+//             [`variants.options.${k.toLowerCase()}`]: {
+//               $regex: otherFilters[k],
+//               $options: "i",
+//             },
+//           },
+//           {
+//             specs: {
+//               $elemMatch: {
+//                 key: k,
+//                 value: { $regex: otherFilters[k], $options: "i" },
+//               },
+//             },
+//           },
+//           {
+//             discount: otherFilters.k,
+//           },
+//         ],
+//       }));
+
+//     if (variantFilters.length > 0) {
+//       matchStage.$and = variantFilters;
+//     }
+
+//     const pageNumber = parseInt(page, 10);
+//     const pageSize = parseInt(limit, 10);
+    
+
+//     const pipeline = [
+//       { $match: matchStage },
+
+//       // Populate addedBy
+//       {
+//         $lookup: {
+//           from: "users",
+//           localField: "addedBy",
+//           foreignField: "_id",
+//           as: "addedBy",
+//         },
+//       },
+//       { $unwind: { path: "$addedBy", preserveNullAndEmptyArrays: true } },
+
+//       // Category lookup
+//       {
+//         $lookup: {
+//           from: "productcategories",
+//           localField: "category",
+//           foreignField: "_id",
+//           as: "category",
+//         },
+//       },
+//       { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+
+//       // Brand lookup
+//       {
+//         $lookup: {
+//           from: "brands",
+//           localField: "brand",
+//           foreignField: "_id",
+//           as: "brand",
+//         },
+//       },
+//       { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
+
+//       // Discount lookup
+//       {
+//         $lookup: {
+//           from: "coupons",
+//           localField: "coupon",
+//           foreignField: "_id",
+//           as: "coupon",
+//         },
+//       },
+//       { $unwind: { path: "$coupon", preserveNullAndEmptyArrays: true } },
+
+//       // Sort
+//       { $sort: { [sortBy]: sortOrder === "asc" ? 1 : -1 } },
+
+//       // Pagination
+//       {
+//         $facet: {
+//           metadata: [
+//             { $count: "totalDocuments" },
+//             {
+//               $addFields: {
+//                 currentPage: pageNumber,
+//                 pageSize,
+//                 totalPages: {
+//                   $ceil: { $divide: ["$totalDocuments", pageSize] },
+//                 },
+//               },
+//             },
+//           ],
+//           products: [
+//             { $skip: (pageNumber - 1) * pageSize },
+//             { $limit: pageSize },
+//           ],
+//         },
+//       },
+//     ];
+
+//     const results = await Product.aggregate(pipeline);
+//     const metadata = results[0]?.metadata[0] || {
+//       totalDocuments: 0,
+//       currentPage: pageNumber,
+//       pageSize,
+//       totalPages: 0,
+//     };
+
+//     res.status(200).json({
+//       products: results[0]?.products || [],
+//       pagination: metadata,
+//     });
+//   } catch (error) {
+//     console.error("Error in getProducts:", error);
+//     res
+//       .status(500)
+//       .json({ message: "Failed to fetch products", error: error.message });
+//   }
+// };
+
 export const getProducts = async (req, res) => {
   try {
     const {
@@ -447,7 +724,9 @@ export const getProducts = async (req, res) => {
       minPrice,
       maxPrice,
       rating,
-      discount,
+      discount, // This should be discountGte but we'll handle it
+      discountGte, // Add this to capture the correct parameter
+      inStock,
       sortBy = "createdAt",
       sortOrder = "desc",
       page = 1,
@@ -455,7 +734,8 @@ export const getProducts = async (req, res) => {
       subcategory,
       ...otherFilters
     } = req.query;
-    console.log(subcategory);
+
+    console.log("🟡 Query Parameters:", req.query);
 
     if (!referenceWebsite) {
       return res.status(400).json({ message: "referenceWebsite is required" });
@@ -470,9 +750,19 @@ export const getProducts = async (req, res) => {
       referenceWebsite: new mongoose.Types.ObjectId(referenceWebsite),
     };
 
+    // Brand filter
+    if (brand) {
+      console.log("🟡 Brand Filter Received:", brand);
+      const brandArray = brand.split(",").map((b) => b.trim());
+      
+      const brandDocs = await Brand.find({ slug: { $in: brandArray } }, "_id");
+      const brandIds = brandDocs.map((doc) => doc._id);
+      
+      matchStage.brand = { $in: brandIds };
+    }
+
     // Category filter
     const filterName = subcategory || category;
-
     if (filterName) {
       console.log("🟡 FilterName Received:", filterName);
       const normalizedFilter = filterName.trim();
@@ -493,12 +783,17 @@ export const getProducts = async (req, res) => {
       }
     }
 
-    // Brand filter
-    if (brand) {
-      const brandArray = brand.split(",").map((b) => b.trim());
-      const brandDocs = await Brand.find({ slug: { $in: brandArray } }, "_id");
-      const brandIds = brandDocs.map((doc) => doc._id);
-      matchStage.brand = { $in: brandIds };
+    // In Stock filter
+    if (inStock === "true") {
+      matchStage["variants"] = {
+        $elemMatch: {
+          $or: [
+            { "inventory.totalStock": { $gt: 0 } },
+            { status: "IN_STOCK" },
+            { status: "ACTIVE" }
+          ]
+        }
+      };
     }
 
     // Rating filter
@@ -514,6 +809,14 @@ export const getProducts = async (req, res) => {
           },
         },
       };
+    }
+
+    // DISCOUNT FILTER - FIXED
+    // Use discountGte parameter (sent from frontend) or discount (fallback)
+    const discountFilterValue = discountGte || discount;
+    if (discountFilterValue) {
+      const discountValue = parseFloat(discountFilterValue);
+      matchStage.discount = { $gte: discountValue };
     }
 
     // Advanced search parsing: "under 30k", "above 50k", etc.
@@ -580,9 +883,6 @@ export const getProducts = async (req, res) => {
               },
             },
           },
-          {
-            discount: otherFilters.k,
-          },
         ],
       }));
 
@@ -592,10 +892,12 @@ export const getProducts = async (req, res) => {
 
     const pageNumber = parseInt(page, 10);
     const pageSize = parseInt(limit, 10);
+    
+    console.log("🟡 Final Match Stage:", JSON.stringify(matchStage, null, 2));
 
     const pipeline = [
       { $match: matchStage },
-
+      // ... rest of your pipeline remains the same
       // Populate addedBy
       {
         $lookup: {
