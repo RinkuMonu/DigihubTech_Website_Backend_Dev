@@ -1,4 +1,7 @@
+import mongoose from "mongoose";
 import Brand from "../models/brand.modal.js";
+import ProductCategory from "../models/Catergroy.model.js";
+import Product from "../models/Product.model.js";
 
 export const createBrand = async (req, res) => {
   try {
@@ -60,12 +63,44 @@ export const createBrand = async (req, res) => {
 // Get all brands
 export const getBrands = async (req, res) => {
   try {
-    const brands = await Brand.find().sort({ createdAt: -1 });
-    res.json({ success: true, data: brands });
+    const { referenceWebsite, search } = req.query;
+
+    // Base brand query
+    const brandQuery = {};
+    if (referenceWebsite) {
+      brandQuery.referenceWebsite = new mongoose.Types.ObjectId(referenceWebsite);
+    }
+
+    if (search && search.trim() !== "") {
+      const regex = new RegExp(search.trim().split(/\s+/).join(".*"), "i");
+
+      const usedCategory = await ProductCategory.findOne({ name: regex });
+      let categoryIds = [];
+      if (usedCategory) {
+        const usedBrandIds = await Product.distinct("brand", {
+          category: usedCategory._id,
+          ...(referenceWebsite && { referenceWebsite }), // apply website filter
+        });
+
+        brandQuery._id = { $in: usedBrandIds };
+      } else {
+        return res.json({ success: true, count: 0, data: [] });
+      }
+    }
+
+    // Fetch brands
+    const brands = await Brand.find(brandQuery).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      count: brands.length,
+      data: brands,
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
 
 // Get brand by ID
 export const getBrandById = async (req, res) => {
@@ -111,7 +146,7 @@ export const updateBrand = async (req, res) => {
       ...(slug && { slug }),
     };
 
-    
+
     const updatedBrand = await Brand.findByIdAndUpdate(
       req.params.id,
       updateData,

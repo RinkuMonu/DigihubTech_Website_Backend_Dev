@@ -619,7 +619,7 @@ export const createMultipleProducts = async (req, res) => {
 
 //     const pageNumber = parseInt(page, 10);
 //     const pageSize = parseInt(limit, 10);
-    
+
 
 //     const pipeline = [
 //       { $match: matchStage },
@@ -754,10 +754,10 @@ export const getProducts = async (req, res) => {
     if (brand) {
       console.log("🟡 Brand Filter Received:", brand);
       const brandArray = brand.split(",").map((b) => b.trim());
-      
+
       const brandDocs = await Brand.find({ slug: { $in: brandArray } }, "_id");
       const brandIds = brandDocs.map((doc) => doc._id);
-      
+
       matchStage.brand = { $in: brandIds };
     }
 
@@ -767,20 +767,27 @@ export const getProducts = async (req, res) => {
       console.log("🟡 FilterName Received:", filterName);
       const normalizedFilter = filterName.trim();
 
-      const categoryQuery = {
-        name: {
-          $regex: normalizedFilter,
-          $options: "i",
-        },
-      };
-      const categoryDocs = await Category.find(categoryQuery, "_id");
+      let categoryDocs = await Category.find(
+        { name: { $regex: normalizedFilter, $options: "i" } },
+        "_id"
+      );
 
       if (!categoryDocs.length) {
-        console.warn("⚠️ No category matched, fallback to website categories.");
-        matchStage.category = { $in: website.categories };
-      } else {
-        matchStage.category = { $in: categoryDocs.map((c) => c._id) };
+        categoryDocs = await Category.find(
+          { subcategory: { $regex: normalizedFilter, $options: "i" } },
+          "_id"
+        );
       }
+      if (!categoryDocs.length) {
+        return res.json({
+          success: true,
+          count: 0,
+          data: [],
+          message: `No products found for category or subcategory: ${filterName}`,
+        });
+      }
+      matchStage.category = { $in: categoryDocs.map((c) => c._id) };
+
     }
 
     // In Stock filter
@@ -892,7 +899,7 @@ export const getProducts = async (req, res) => {
 
     const pageNumber = parseInt(page, 10);
     const pageSize = parseInt(limit, 10);
-    
+
     console.log("🟡 Final Match Stage:", JSON.stringify(matchStage, null, 2));
 
     const pipeline = [
