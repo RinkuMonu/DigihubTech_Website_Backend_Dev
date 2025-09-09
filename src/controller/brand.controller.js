@@ -64,31 +64,56 @@ export const createBrand = async (req, res) => {
 export const getBrands = async (req, res) => {
   try {
     const { referenceWebsite, search } = req.query;
-
-    // Base brand query
     const brandQuery = {};
+
     if (referenceWebsite) {
       brandQuery.referenceWebsite = new mongoose.Types.ObjectId(referenceWebsite);
     }
 
     if (search && search.trim() !== "") {
-      const regex = new RegExp(search.trim().split(/\s+/).join(".*"), "i");
 
-      const usedCategory = await ProductCategory.findOne({ name: regex });
-      let categoryIds = [];
-      if (usedCategory) {
+      const escapedSearch = search.trim().replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+
+      // Exact match regex (case-insensitive)
+      const regex = new RegExp(`^${escapedSearch}$`, "i");
+      console.log("mainregexCategoryMatches", regex);
+
+      // 1️⃣ Check agar search kisi main category (subcategory field) me match kare
+      const mainCategoryMatches = await ProductCategory.find({ subcategory: regex });
+
+      if (mainCategoryMatches.length > 0) {
+        // unique subcategory name lo (jaise "mobiles & tablets")
+        const mainCategoryName = mainCategoryMatches.map(data => data._id);
+
+        // ab saare subcategories lao jinke subcategory = mainCategoryName
+        // const subcategories = await ProductCategory.find({
+        //   subcategory: mainCategoryName,
+        // });
+
         const usedBrandIds = await Product.distinct("brand", {
-          category: usedCategory._id,
-          ...(referenceWebsite && { referenceWebsite }), // apply website filter
+          category: { $in: mainCategoryName },
+          ...(referenceWebsite && { referenceWebsite }),
         });
 
         brandQuery._id = { $in: usedBrandIds };
       } else {
-        return res.json({ success: true, count: 0, data: [] });
+        // 2️⃣ check agar search kisi subcategory name me match kare
+        const subcategoryMatch = await ProductCategory.findOne({ name: regex });
+
+        if (subcategoryMatch) {
+          const usedBrandIds = await Product.distinct("brand", {
+            category: subcategoryMatch._id,
+            ...(referenceWebsite && { referenceWebsite }),
+          });
+
+          brandQuery._id = { $in: usedBrandIds };
+        } else {
+          return res.json({ success: true, count: 0, data: [] });
+        }
       }
     }
 
-    // Fetch brands
+    // 3️⃣ Ab brands fetch karo
     const brands = await Brand.find(brandQuery).sort({ createdAt: -1 });
 
     res.json({
@@ -100,6 +125,8 @@ export const getBrands = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+
 
 
 // Get brand by ID

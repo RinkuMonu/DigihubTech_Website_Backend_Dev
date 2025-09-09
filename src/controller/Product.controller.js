@@ -870,28 +870,32 @@ export const getProducts = async (req, res) => {
         ];
       }
     }
+    console.log(otherFilters);
 
     // Dynamic variant/spec filters
     const variantFilters = Object.keys(otherFilters)
       .filter((k) => k !== "referenceWebsite" && otherFilters[k])
-      .map((k) => ({
-        $or: [
-          {
-            [`variants.options.${k.toLowerCase()}`]: {
-              $regex: otherFilters[k],
-              $options: "i",
-            },
-          },
-          {
-            specs: {
-              $elemMatch: {
-                key: k,
-                value: { $regex: otherFilters[k], $options: "i" },
+      .map((k) => {
+        const filterValue = String(otherFilters[k] || "").trim();
+        return {
+          $or: [
+            {
+              [`variants.options.${k}`]: {
+                $regex: new RegExp(filterValue, "i"), // case-insensitive value
               },
             },
-          },
-        ],
-      }));
+            {
+              specs: {
+                $elemMatch: {
+                  key: { $regex: new RegExp(`^${k}$`, "i") }, // case-insensitive key match
+                  value: { $regex: new RegExp(filterValue, "i") }, // case-insensitive value
+                },
+              },
+            },
+          ],
+        };
+      });
+
 
     if (variantFilters.length > 0) {
       matchStage.$and = variantFilters;
