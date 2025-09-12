@@ -3,16 +3,17 @@ import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 
 // ✅ Static Cloudinary Config (abhi ke liye hard-coded)
-// cloudinary.config({
-//     cloud_name: "dgcnzpurv",
-//     api_key: "723517284524997",
-//     api_secret: "kavO7bGj_c8gXrZQ7JAGGVXR6Tc",
-// });
 cloudinary.config({
-    cloud_name: "dhx2iuesd",
-    api_key: "226277335295733",
-    api_secret: "SeUBG1eOCJlU4dWlbSyvcwT4plA",
+    cloud_name: "dgcnzpurv",
+    api_key: "723517284524997",
+    api_secret: "kavO7bGj_c8gXrZQ7JAGGVXR6Tc",
 });
+
+// cloudinary.config({
+//     cloud_name: "dhx2iuesd",
+//     api_key: "226277335295733",
+//     api_secret: "SeUBG1eOCJlU4dWlbSyvcwT4plA",
+// });
 
 
 // ✅ Set up Cloudinary storage
